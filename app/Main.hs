@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Monad (when)
-import           Data.Char (toLower)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import           Database.SQLite.Simple
@@ -46,8 +45,11 @@ actionKey Quit = "quit"
 actionMap :: HM.HashMap String Action
 actionMap = HM.fromList [(actionKey a, a) | a <- allowedActions]
 
+normalizeAction :: String -> String
+normalizeAction s = T.unpack $ T.toLower $ T.strip $ T.pack s
+
 parseAction :: String -> Maybe Action
-parseAction s = HM.lookup (map toLower s) actionMap
+parseAction s = HM.lookup (normalizeAction s) actionMap
 
 formatAllowedActions :: String
 formatAllowedActions = unwords (map actionKey allowedActions)
@@ -85,7 +87,7 @@ actionLoop conn = do
       continue <- runAction conn action
       when continue $ actionLoop conn
     Nothing -> do
-      putStrLn ("Invalid action. Allowed: " ++ formatAllowedActions)
+      putStrLn ("Invalid action \"" ++ actionStr ++ "\". Allowed: " ++ formatAllowedActions)
       actionLoop conn
 
 main :: IO ()
