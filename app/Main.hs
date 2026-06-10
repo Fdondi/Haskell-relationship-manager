@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Monad (when)
+import           Data.Char (toLower)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import           Database.SQLite.Simple
@@ -35,17 +36,18 @@ data Action = Add | List | DeleteID | Quit deriving (Show, Eq, Enum, Bounded)
 allowedActions :: [Action]
 allowedActions = [minBound .. maxBound]
 
+-- all lowercase! input will be normalized to lowercase
 actionKey :: Action -> String
 actionKey Add = "add"
 actionKey List = "list"
-actionKey DeleteID = "deleteID"
+actionKey DeleteID = "deleteid"
 actionKey Quit = "quit"
 
 actionMap :: HM.HashMap String Action
 actionMap = HM.fromList [(actionKey a, a) | a <- allowedActions]
 
 parseAction :: String -> Maybe Action
-parseAction s = HM.lookup s actionMap
+parseAction s = HM.lookup (map toLower s) actionMap
 
 formatAllowedActions :: String
 formatAllowedActions = unwords (map actionKey allowedActions)
