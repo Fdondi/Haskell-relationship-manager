@@ -67,6 +67,7 @@ executable myfirstsql
     build-depends:    base ^>=4.18.3.0
                     , sqlite-simple
                     , text
+                    , unordered-containers
 
     -- Directories containing source files.
     hs-source-dirs:   app

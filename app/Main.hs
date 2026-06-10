@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Data.List (find)
+import           Control.Monad (when)
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import           Database.SQLite.Simple
-import qualified Control.Monad
 
 type PersonName = T.Text
 type PersonNotes = T.Text
@@ -41,8 +41,11 @@ actionKey List = "list"
 actionKey DeleteID = "deleteID"
 actionKey Quit = "quit"
 
+actionMap :: HM.HashMap String Action
+actionMap = HM.fromList [(actionKey a, a) | a <- allowedActions]
+
 parseAction :: String -> Maybe Action
-parseAction s = find ((== s) . actionKey) allowedActions
+parseAction s = HM.lookup s actionMap
 
 formatAllowedActions :: String
 formatAllowedActions = unwords (map actionKey allowedActions)
@@ -78,7 +81,7 @@ actionLoop conn = do
   case parseAction actionStr of
     Just action -> do
       continue <- runAction conn action
-      Control.Monad.when continue $ actionLoop conn
+      when continue $ actionLoop conn
     Nothing -> do
       putStrLn ("Invalid action. Allowed: " ++ formatAllowedActions)
       actionLoop conn
