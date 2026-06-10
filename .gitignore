@@ -1,0 +1,22 @@
+dist-newstyle/
+dist/
+.stack-work/
+cabal.project.local
+.ghc.environment.*
+
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+*.prof
+*.hp
+*.aux
+*.chi
+*.chs.h
+*.dyn_o
+*.eventlog
+
+.hie
+
+# Databases are private data
+*.db
