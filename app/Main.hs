@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Monad (when)
@@ -32,29 +33,36 @@ type EventNotes = T.Text
 type CompanySponsor
 -}
 
-data Action = Add | List | DeleteID | Quit deriving (Show, Eq, Enum, Bounded)
+data Action
+  = Add PersonName PersonNotes
+  | List
+  | DeleteID Int
+  | Quit
+  deriving (Show)
 
-allowedActions :: [Action]
-allowedActions = [minBound .. maxBound]
+data Verb = VAdd | VList | VDeleteID | VQuit deriving (Show, Eq, Enum, Bounded)
+
+allowedVerbs :: [Verb]
+allowedVerbs = [minBound .. maxBound]
 
 -- all lowercase! input will be normalized to lowercase
-actionKey :: Action -> String
-actionKey Add = "add"
-actionKey List = "list"
-actionKey DeleteID = "deleteid"
-actionKey Quit = "quit"
+verbKey :: Verb -> String
+verbKey VAdd = "add"
+verbKey VList = "list"
+verbKey VDeleteID = "deleteid"
+verbKey VQuit = "quit"
 
-actionMap :: HM.HashMap String Action
-actionMap = HM.fromList [(actionKey a, a) | a <- allowedActions]
+verbMap :: HM.HashMap String Verb
+verbMap = HM.fromList [(verbKey v, v) | v <- allowedVerbs]
 
 trim :: String -> String
 trim = reverse . dropWhile isSpace . reverse . dropWhile isSpace
 
-normalizeAction :: String -> String
-normalizeAction = map toLower . trim
+normalizeVerb :: String -> String
+normalizeVerb = map toLower . trim
 
-parseAction :: String -> Maybe Action
-parseAction s = HM.lookup (normalizeAction s) actionMap
+parseVerb :: String -> Maybe Verb
+parseVerb s = HM.lookup (normalizeVerb s) verbMap
 
 parseFirstToken :: String -> (String, String)
 parseFirstToken s =
@@ -70,92 +78,97 @@ parseQuotedText s =
         _                      -> Nothing
     _ -> Nothing
 
--- Omitted: prompt the user for this field; Given: use the inline value
-data OptArg a = Omitted | Given a deriving (Show)
+data ParseResult a = ParseSuccess a | ParseError String String deriving (Show, Functor, Foldable, Traversable)
 
-promptOptArg :: OptArg String -> String -> IO String
-promptOptArg (Given x) _ = pure x
-promptOptArg Omitted prompt = do
-  putStrLn prompt
-  getLine
-
-data ParseResult a = ParseSuccess a | ParseError String deriving (Show)
-
-instance Functor ParseResult where
-  fmap f (ParseSuccess a) = ParseSuccess (f a)
-  fmap _ (ParseError e)   = ParseError e
-
-parseAddRest :: String -> ParseResult (OptArg String)
-parseAddRest rest
-  | null rest = ParseSuccess Omitted
-  | "\"" `isPrefixOf` trim rest =
-      case parseQuotedText rest of
-        Just (name, leftover) | null leftover -> ParseSuccess (Given name)
-        _ -> ParseError "malformed quoted name"
-  | otherwise = ParseSuccess (Given rest)
-
-parseDeleteIdRest :: String -> ParseResult (OptArg String)
-parseDeleteIdRest rest
-  | null rest = ParseSuccess Omitted
-  | otherwise =
-      case reads (trim rest) :: [(Int, String)] of
-        [(_, "")] -> ParseSuccess (Given (trim rest))
-        _         -> ParseError "invalid id"
-
-data ParsedCommand
-  = ParsedAdd (OptArg String)
-  | ParsedList
-  | ParsedDeleteID (OptArg String)
-  | ParsedQuit
+data ActionInput
+  = AddInput (Maybe String)
+  | ListInput
+  | DeleteIDInput (Maybe Int)
+  | QuitInput
   deriving (Show)
 
-parseCommandLine :: String -> ParseResult ParsedCommand
-parseCommandLine input =
-  let (actionTok, rest) = parseFirstToken input
-  in case parseAction actionTok of
-    Nothing -> ParseError "unknown action"
-    Just action -> case action of
-      Add      -> ParsedAdd <$> parseAddRest rest
-      List     -> ParseSuccess ParsedList
-      DeleteID -> ParsedDeleteID <$> parseDeleteIdRest rest
-      Quit     -> ParseSuccess ParsedQuit
+parseAddRest :: String -> ParseResult (Maybe String)
+parseAddRest rest
+  | null rest = ParseSuccess Nothing
+  | "\"" `isPrefixOf` trim rest =
+      case parseQuotedText rest of
+        Just (name, leftover) | null leftover -> ParseSuccess (Just name)
+        _ -> ParseError "malformed quoted name" rest
+  | otherwise = ParseSuccess (Just rest)
 
-formatAllowedActions :: String
-formatAllowedActions = unwords (map actionKey allowedActions)
+parseDeleteIdRest :: String -> ParseResult (Maybe Int)
+parseDeleteIdRest rest
+  | null rest = ParseSuccess Nothing
+  | otherwise =
+      case reads (trim rest) :: [(Int, String)] of
+        [(n, "")] -> ParseSuccess (Just n)
+        _         -> ParseError "invalid id" rest
 
-runAction :: Connection -> ParsedCommand -> IO Bool
-runAction conn (ParsedAdd nameArg) = do
-  name <- promptOptArg nameArg "Enter name: "
+parseActionLine :: String -> ParseResult ActionInput
+parseActionLine input =
+  let (verbTok, rest) = parseFirstToken input
+  in case parseVerb verbTok of
+    Nothing -> ParseError "unknown action" input
+    Just verb -> case verb of
+      VAdd      -> AddInput <$> parseAddRest rest
+      VList     -> ParseSuccess ListInput
+      VDeleteID -> DeleteIDInput <$> parseDeleteIdRest rest
+      VQuit     -> ParseSuccess QuitInput
+
+getIfMissing :: Read a => Maybe a -> String -> IO a
+getIfMissing (Just a) _ = pure a
+getIfMissing Nothing prompt = do
+  putStrLn prompt
+  read <$> getLine
+
+-- in case we need extra fields that weren't supplied in the first line, request them here
+completeAction :: ActionInput -> IO Action
+completeAction (AddInput mName) = do
+  nameStr <- getIfMissing mName "Enter name: "
   putStrLn "Enter notes: "
-  notes <- getLine
-  execute conn "INSERT INTO people (name, notes) VALUES (?,?)" (T.pack name, T.pack notes)
+  Add (T.pack nameStr) . T.pack <$> getLine
+completeAction ListInput = pure List
+completeAction (DeleteIDInput mId) = do
+  id_ <- getIfMissing mId "Enter ID to delete: "
+  pure (DeleteID id_)
+completeAction QuitInput = pure Quit
+
+getCommand :: IO (ParseResult Action)
+getCommand = do
+  putStrLn ("Enter action (allowed: " ++ formatAllowedVerbs ++ "): ")
+  input <- getLine
+  traverse completeAction (parseActionLine input)
+
+formatAllowedVerbs :: String
+formatAllowedVerbs = unwords (map verbKey allowedVerbs)
+
+runAction :: Connection -> Action -> IO Bool
+runAction conn (Add name notes) = do
+  execute conn "INSERT INTO people (name, notes) VALUES (?,?)" (name, notes)
   putStrLn "Person added"
   pure True
-runAction conn ParsedList = do
+runAction conn List = do
   putStrLn "Current people: "
   r <- query_ conn "SELECT * from people" :: IO [PersonField]
   mapM_ print r
   pure True
-runAction conn (ParsedDeleteID idArg) = do
-  idStr <- promptOptArg idArg "Enter ID to delete: "
-  let id_ = read idStr :: Int
+runAction conn (DeleteID id_) = do
   execute conn "DELETE FROM people WHERE id = ?" (Only id_)
   putStrLn ("Person with ID " ++ show id_ ++ " deleted")
   pure True
-runAction _conn ParsedQuit = do
+runAction _conn Quit = do
   putStrLn "Quitting..."
   pure False
 
 actionLoop :: Connection -> IO ()
 actionLoop conn = do
-  putStrLn ("Enter action (allowed: " ++ formatAllowedActions ++ "): ")
-  actionStr <- getLine
-  case parseCommandLine actionStr of
-    ParseSuccess cmd -> do
-      continue <- runAction conn cmd
+  maybeAction <- getCommand
+  case maybeAction of
+    ParseSuccess action -> do
+      continue <- runAction conn action
       when continue $ actionLoop conn
-    ParseError _err -> do
-      putStrLn ("Invalid action \"" ++ actionStr ++ "\". Allowed: " ++ formatAllowedActions)
+    ParseError _err input -> do
+      putStrLn (_err ++ ": Invalid action \"" ++ input ++ "\". Allowed: " ++ formatAllowedVerbs)
       actionLoop conn
 
 main :: IO ()
