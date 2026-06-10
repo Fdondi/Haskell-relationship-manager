@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- import           Control.Applicative
+import           Data.List (find)
 import qualified Data.Text as T
 import           Database.SQLite.Simple
-import System.Exit (exitSuccess)
--- import           Database.SQLite.Simple.FromRow
+import qualified Control.Monad
 
 type PersonName = T.Text
 type PersonNotes = T.Text
@@ -31,33 +30,58 @@ type EventNotes = T.Text
 type CompanySponsor
 -}
 
+data Action = Add | List | DeleteID | Quit deriving (Show, Eq, Enum, Bounded)
+
+allowedActions :: [Action]
+allowedActions = [minBound .. maxBound]
+
+actionKey :: Action -> String
+actionKey Add = "add"
+actionKey List = "list"
+actionKey DeleteID = "deleteID"
+actionKey Quit = "quit"
+
+parseAction :: String -> Maybe Action
+parseAction s = find ((== s) . actionKey) allowedActions
+
+formatAllowedActions :: String
+formatAllowedActions = unwords (map actionKey allowedActions)
+
+runAction :: Connection -> Action -> IO Bool
+runAction conn Add = do
+  putStrLn "Enter name: "
+  name <- getLine
+  putStrLn "Enter notes: "
+  notes <- getLine
+  execute conn "INSERT INTO people (name, notes) VALUES (?,?)" (T.pack name, T.pack notes)
+  putStrLn "Person added"
+  pure True
+runAction conn List = do
+  putStrLn "Current people: "
+  r <- query_ conn "SELECT * from people" :: IO [PersonField]
+  mapM_ print r
+  pure True
+runAction conn DeleteID = do
+  putStrLn "Enter ID to delete: "
+  removed_id <- getLine
+  execute conn "DELETE FROM people WHERE id = ?" (Only (read removed_id :: Int))
+  putStrLn ("Person with ID " ++ removed_id ++ " deleted")
+  pure True
+runAction _conn Quit = do
+  putStrLn "Quitting..."
+  pure False
+
 actionLoop :: Connection -> IO ()
 actionLoop conn = do
-  putStrLn "Enter action: "
-  action <- getLine
-  case action of
-    "add" -> do
-      putStrLn ("Enter name: " :: String)
-      name <- getLine
-      putStrLn ("Enter notes: " :: String)
-      notes <- getLine
-      execute conn "INSERT INTO people (name, notes) VALUES (?,?)" (T.pack name, T.pack notes)
-      putStrLn "Person added"
-    "list" -> do
-      putStrLn "Current people: "
-      r <- query_ conn "SELECT * from people" :: IO [PersonField]
-      mapM_ print r
-    "deleteID" -> do
-      putStrLn ("Enter ID to delete: " :: String)
-      removed_id <- getLine
-      execute conn "DELETE FROM people WHERE id = ?" (Only (read removed_id :: Int))
-      putStrLn ("Person with ID " ++ removed_id ++ " deleted")
-    "quit" -> do
-      close conn
-      putStrLn "Quitting..."
-      exitSuccess
-    _ -> putStrLn ("Invalid action" :: String)
-  actionLoop conn
+  putStrLn ("Enter action (allowed: " ++ formatAllowedActions ++ "): ")
+  actionStr <- getLine
+  case parseAction actionStr of
+    Just action -> do
+      continue <- runAction conn action
+      Control.Monad.when continue $ actionLoop conn
+    Nothing -> do
+      putStrLn ("Invalid action. Allowed: " ++ formatAllowedActions)
+      actionLoop conn
 
 main :: IO ()
 main = do
