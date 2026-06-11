@@ -1,0 +1,27 @@
+add company "Acme Corp"
+notes for acme
+add person "Jane Doe"
+friend from conference
+n
+add event "Convention Center"
+2026-06-01
+2026-06-03
+annual meetup
+n
+add encounter
+1
+1
+met at registration desk
+add employment
+1
+1
+list person
+list company
+list event
+list encounter
+list employment
+delete employment 1 1
+delete person 1
+delete encounter 1
+delete person 1
+quit

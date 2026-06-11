@@ -58,7 +58,19 @@ executable myfirstsql
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:    Complete
+                    , Db.Company
+                    , Db.Count
+                    , Db.Encounter
+                    , Db.Event
+                    , Db.Links
+                    , Db.Person
+                    , Db.Schema
+                    , Help
+                    , Parse
+                    , Prompt
+                    , Run
+                    , Types
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
