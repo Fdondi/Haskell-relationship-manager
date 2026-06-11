@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Db.Count where
+module Db.Sqlite.Count where
 
 import           Database.SQLite.Simple
 

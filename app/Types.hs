@@ -108,6 +108,6 @@ data ActionInput
   | DeleteEntityInput ObjectKind (Maybe Int)
   | DeleteEmploymentInput (Maybe Int) (Maybe Int)
   | DeleteSponsorshipInput (Maybe Int) (Maybe Int)
-  | ListEntityInput ObjectKind
+  | ListEntityInput (Maybe ObjectKind)
   | QuitInput
   deriving (Show)

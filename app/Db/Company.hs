@@ -1,37 +1,43 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Db.Company where
 
-import           Control.Exception (catch)
-import           Database.SQLite.Simple
-import           Db.Count (CountRow (..))
+import           Db.Conn (DbConn (..))
 import           Types
 
-addCompany :: Connection -> CompanyName -> CompanyNotes -> IO Int
-addCompany conn name notes = do
-  execute conn "INSERT INTO companies (name, notes) VALUES (?, ?)" (name, notes)
-  fromIntegral <$> lastInsertRowId conn
+import qualified Db.Sqlite.Company as Sqlite
 
-listCompanies :: Connection -> IO [CompanyRow]
-listCompanies conn = query_ conn "SELECT id, name, notes FROM companies ORDER BY id"
+#ifdef POSTGRES
+import qualified Db.Postgres.Company as Postgres
+#endif
 
-companyExists :: Connection -> Int -> IO Bool
-companyExists conn id_ = do
-  [CountRow n] <- query conn "SELECT COUNT(*) FROM companies WHERE id = ?" (Only id_)
-  pure (n > 0)
+addCompany :: DbConn -> CompanyName -> CompanyNotes -> IO Int
+addCompany (SqliteConn conn) = Sqlite.addCompany conn
+#ifdef POSTGRES
+addCompany (PostgresConn conn) = Postgres.addCompany conn
+#endif
 
-deleteCompany :: Connection -> Int -> IO Bool
-deleteCompany conn id_ =
-  (do
-    execute conn "DELETE FROM companies WHERE id = ?" (Only id_)
-    putStrLn ("Company with ID " ++ show id_ ++ " deleted")
-    pure True)
-    `catch` \(_ :: SQLError) -> do
-      putStrLn "Cannot delete company: still referenced by employment or sponsorship links"
-      pure False
+listCompanies :: DbConn -> IO [CompanyRow]
+listCompanies (SqliteConn conn) = Sqlite.listCompanies conn
+#ifdef POSTGRES
+listCompanies (PostgresConn conn) = Postgres.listCompanies conn
+#endif
 
-printCompanies :: Connection -> IO ()
-printCompanies conn = do
-  putStrLn "Companies:"
-  rows <- listCompanies conn
-  mapM_ print rows
+companyExists :: DbConn -> Int -> IO Bool
+companyExists (SqliteConn conn) = Sqlite.companyExists conn
+#ifdef POSTGRES
+companyExists (PostgresConn conn) = Postgres.companyExists conn
+#endif
+
+deleteCompany :: DbConn -> Int -> IO Bool
+deleteCompany (SqliteConn conn) = Sqlite.deleteCompany conn
+#ifdef POSTGRES
+deleteCompany (PostgresConn conn) = Postgres.deleteCompany conn
+#endif
+
+printCompanies :: DbConn -> IO ()
+printCompanies (SqliteConn conn) = Sqlite.printCompanies conn
+#ifdef POSTGRES
+printCompanies (PostgresConn conn) = Postgres.printCompanies conn
+#endif

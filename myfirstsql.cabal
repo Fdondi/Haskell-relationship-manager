@@ -48,6 +48,11 @@ extra-doc-files:    CHANGELOG.md
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
 
+flag postgres
+    description: Build with PostgreSQL support via Rel8 and Hasql
+    default:     True
+    manual:      True
+
 common warnings
     ghc-options: -Wall
 
@@ -61,17 +66,39 @@ executable myfirstsql
     -- Modules included in this executable, other than Main.
     other-modules:    Complete
                     , Db.Company
-                    , Db.Count
+                    , Db.Conn
                     , Db.Encounter
                     , Db.Event
                     , Db.Links
                     , Db.Person
-                    , Db.Schema
+                    , Db.Sqlite.Company
+                    , Db.Sqlite.Count
+                    , Db.Sqlite.Encounter
+                    , Db.Sqlite.Event
+                    , Db.Sqlite.Links
+                    , Db.Sqlite.Person
+                    , Db.Sqlite.Schema
                     , Help
                     , Parse
                     , Prompt
                     , Run
                     , Types
+
+    if flag(postgres)
+        other-modules: Db.Postgres.Company
+                       , Db.Postgres.Conn
+                       , Db.Postgres.Encounter
+                       , Db.Postgres.Event
+                       , Db.Postgres.Links
+                       , Db.Postgres.Person
+                       , Db.Postgres.Query
+                       , Db.Postgres.Schema
+        build-depends: bytestring
+                     , hasql ^>=1.8
+                     , rel8 ^>=1.7
+                     , semialign >= 1.3 && < 1.4
+                     , semigroupoids
+        cpp-options:   -DPOSTGRES
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

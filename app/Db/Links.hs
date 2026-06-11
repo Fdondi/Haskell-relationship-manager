@@ -1,81 +1,73 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Db.Links where
 
-import           Database.SQLite.Simple
-import           Db.Count (CountRow (..))
+import           Db.Conn (DbConn (..))
 import           Types
 
-addEmployment :: Connection -> Int -> Int -> IO Bool
-addEmployment conn personId companyId = do
-  execute conn "INSERT OR IGNORE INTO person_companies (person_id, company_id) VALUES (?, ?)" (personId, companyId)
-  putStrLn "Employment link added (or already existed)"
-  pure True
+import qualified Db.Sqlite.Links as Sqlite
 
-employmentExists :: Connection -> Int -> Int -> IO Bool
-employmentExists conn personId companyId = do
-  [CountRow n] <-
-    query conn
-      "SELECT COUNT(*) FROM person_companies WHERE person_id = ? AND company_id = ?"
-      (personId, companyId)
-  pure (n > 0)
+#ifdef POSTGRES
+import qualified Db.Postgres.Links as Postgres
+#endif
 
-deleteEmployment :: Connection -> Int -> Int -> IO Bool
-deleteEmployment conn personId companyId = do
-  existed <- employmentExists conn personId companyId
-  execute conn "DELETE FROM person_companies WHERE person_id = ? AND company_id = ?" (personId, companyId)
-  if existed
-    then putStrLn "Employment link deleted" >> pure True
-    else putStrLn "Employment link not found" >> pure True
+addEmployment :: DbConn -> Int -> Int -> IO Bool
+addEmployment (SqliteConn conn) = Sqlite.addEmployment conn
+#ifdef POSTGRES
+addEmployment (PostgresConn conn) = Postgres.addEmployment conn
+#endif
 
-listEmployment :: Connection -> IO [EmploymentRow]
-listEmployment conn =
-  query_ conn
-    "SELECT pc.person_id, p.name, pc.company_id, c.name \
-    \FROM person_companies pc \
-    \JOIN people p ON p.id = pc.person_id \
-    \JOIN companies c ON c.id = pc.company_id \
-    \ORDER BY pc.person_id, pc.company_id"
+employmentExists :: DbConn -> Int -> Int -> IO Bool
+employmentExists (SqliteConn conn) = Sqlite.employmentExists conn
+#ifdef POSTGRES
+employmentExists (PostgresConn conn) = Postgres.employmentExists conn
+#endif
 
-printEmployment :: Connection -> IO ()
-printEmployment conn = do
-  putStrLn "Employment:"
-  rows <- listEmployment conn
-  mapM_ print rows
+deleteEmployment :: DbConn -> Int -> Int -> IO Bool
+deleteEmployment (SqliteConn conn) = Sqlite.deleteEmployment conn
+#ifdef POSTGRES
+deleteEmployment (PostgresConn conn) = Postgres.deleteEmployment conn
+#endif
 
-addSponsorship :: Connection -> Int -> Int -> IO Bool
-addSponsorship conn eventId companyId = do
-  execute conn "INSERT OR IGNORE INTO event_companies (event_id, company_id) VALUES (?, ?)" (eventId, companyId)
-  putStrLn "Sponsorship link added (or already existed)"
-  pure True
+listEmployment :: DbConn -> IO [EmploymentRow]
+listEmployment (SqliteConn conn) = Sqlite.listEmployment conn
+#ifdef POSTGRES
+listEmployment (PostgresConn conn) = Postgres.listEmployment conn
+#endif
 
-sponsorshipExists :: Connection -> Int -> Int -> IO Bool
-sponsorshipExists conn eventId companyId = do
-  [CountRow n] <-
-    query conn
-      "SELECT COUNT(*) FROM event_companies WHERE event_id = ? AND company_id = ?"
-      (eventId, companyId)
-  pure (n > 0)
+printEmployment :: DbConn -> IO ()
+printEmployment (SqliteConn conn) = Sqlite.printEmployment conn
+#ifdef POSTGRES
+printEmployment (PostgresConn conn) = Postgres.printEmployment conn
+#endif
 
-deleteSponsorship :: Connection -> Int -> Int -> IO Bool
-deleteSponsorship conn eventId companyId = do
-  existed <- sponsorshipExists conn eventId companyId
-  execute conn "DELETE FROM event_companies WHERE event_id = ? AND company_id = ?" (eventId, companyId)
-  if existed
-    then putStrLn "Sponsorship link deleted" >> pure True
-    else putStrLn "Sponsorship link not found" >> pure True
+addSponsorship :: DbConn -> Int -> Int -> IO Bool
+addSponsorship (SqliteConn conn) = Sqlite.addSponsorship conn
+#ifdef POSTGRES
+addSponsorship (PostgresConn conn) = Postgres.addSponsorship conn
+#endif
 
-listSponsorship :: Connection -> IO [SponsorshipRow]
-listSponsorship conn =
-  query_ conn
-    "SELECT ec.event_id, e.location, ec.company_id, c.name \
-    \FROM event_companies ec \
-    \JOIN events e ON e.id = ec.event_id \
-    \JOIN companies c ON c.id = ec.company_id \
-    \ORDER BY ec.event_id, ec.company_id"
+sponsorshipExists :: DbConn -> Int -> Int -> IO Bool
+sponsorshipExists (SqliteConn conn) = Sqlite.sponsorshipExists conn
+#ifdef POSTGRES
+sponsorshipExists (PostgresConn conn) = Postgres.sponsorshipExists conn
+#endif
 
-printSponsorship :: Connection -> IO ()
-printSponsorship conn = do
-  putStrLn "Sponsorship:"
-  rows <- listSponsorship conn
-  mapM_ print rows
+deleteSponsorship :: DbConn -> Int -> Int -> IO Bool
+deleteSponsorship (SqliteConn conn) = Sqlite.deleteSponsorship conn
+#ifdef POSTGRES
+deleteSponsorship (PostgresConn conn) = Postgres.deleteSponsorship conn
+#endif
+
+listSponsorship :: DbConn -> IO [SponsorshipRow]
+listSponsorship (SqliteConn conn) = Sqlite.listSponsorship conn
+#ifdef POSTGRES
+listSponsorship (PostgresConn conn) = Postgres.listSponsorship conn
+#endif
+
+printSponsorship :: DbConn -> IO ()
+printSponsorship (SqliteConn conn) = Sqlite.printSponsorship conn
+#ifdef POSTGRES
+printSponsorship (PostgresConn conn) = Postgres.printSponsorship conn
+#endif

@@ -20,3 +20,5 @@ cabal.project.local
 
 # Databases are private data
 *.db
+
+.env 

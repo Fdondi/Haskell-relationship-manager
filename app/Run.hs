@@ -2,7 +2,7 @@
 
 module Run where
 
-import           Database.SQLite.Simple
+import           Db.Conn (DbConn)
 import           Db.Company
 import           Db.Encounter
 import           Db.Event
@@ -10,7 +10,7 @@ import           Db.Links
 import           Db.Person
 import           Types
 
-runAction :: Connection -> Action -> IO Bool
+runAction :: DbConn -> Action -> IO Bool
 runAction conn (AddPerson name notes companyIds) = do
   _ <- addPerson conn name notes companyIds
   putStrLn "Person added"
@@ -41,7 +41,7 @@ runAction _conn Quit = do
   putStrLn "Quitting..."
   pure False
 
-listEntity :: Connection -> ObjectKind -> IO ()
+listEntity :: DbConn -> ObjectKind -> IO ()
 listEntity conn = \case
   OPerson      -> printPeople conn
   OCompany     -> printCompanies conn
@@ -50,7 +50,7 @@ listEntity conn = \case
   OEmployment  -> printEmployment conn
   OSponsorship -> printSponsorship conn
 
-deleteEntity :: Connection -> ObjectKind -> Int -> IO Bool
+deleteEntity :: DbConn -> ObjectKind -> Int -> IO Bool
 deleteEntity conn OPerson id_ = deletePerson conn id_
 deleteEntity conn OCompany id_ = deleteCompany conn id_
 deleteEntity conn OEvent id_ = deleteEvent conn id_

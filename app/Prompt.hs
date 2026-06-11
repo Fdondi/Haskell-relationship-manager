@@ -5,13 +5,13 @@ module Prompt where
 
 import           Data.Char (isSpace)
 import qualified Data.Text as T
-import           Database.SQLite.Simple (Connection)
+import           Db.Conn (DbConn)
 import           Db.Company
 import           Db.Encounter
 import           Db.Event
 import           Db.Links
 import           Db.Person
-import           Parse (trim)
+import           Parse (parseObject, trim)
 import           Types
 
 getIfMissing :: Read a => Maybe a -> String -> IO a
@@ -25,7 +25,19 @@ getLineText prompt = do
   putStrLn prompt
   T.pack <$> getLine
 
-printObjectList :: Connection -> ObjectKind -> IO ()
+pickObjectKind :: IO ObjectKind
+pickObjectKind = loop
+  where
+    loop = do
+      putStrLn ("Enter object (" ++ unwords (map objectKey allowedObjects) ++ "):")
+      input <- getLine
+      case parseObject (trim input) of
+        Just obj -> pure obj
+        Nothing -> do
+          putStrLn "Unknown object. Try again:"
+          loop
+
+printObjectList :: DbConn -> ObjectKind -> IO ()
 printObjectList conn = \case
   OPerson      -> printPeople conn
   OCompany     -> printCompanies conn
@@ -34,7 +46,7 @@ printObjectList conn = \case
   OEmployment  -> printEmployment conn
   OSponsorship -> printSponsorship conn
 
-entityExists :: Connection -> ObjectKind -> Int -> IO Bool
+entityExists :: DbConn -> ObjectKind -> Int -> IO Bool
 entityExists conn = \case
   OPerson      -> personExists conn
   OCompany     -> companyExists conn
@@ -43,7 +55,7 @@ entityExists conn = \case
   OEmployment  -> \_ -> pure False
   OSponsorship -> \_ -> pure False
 
-createMinimal :: Connection -> ObjectKind -> IO Int
+createMinimal :: DbConn -> ObjectKind -> IO Int
 createMinimal conn OPerson = do
   name <- getLineText "Enter name: "
   notes <- getLineText "Enter notes: "
@@ -74,7 +86,7 @@ createMinimal conn OSponsorship = do
   _ <- addSponsorship conn eventId companyId
   pure eventId
 
-pickEntityOrCreate :: Connection -> ObjectKind -> IO Int
+pickEntityOrCreate :: DbConn -> ObjectKind -> IO Int
 pickEntityOrCreate conn kind = do
   printObjectList conn kind
   putStrLn ("Enter " ++ objectKey kind ++ " id, or 'new' to create one:")
@@ -97,7 +109,7 @@ pickEntityOrCreate conn kind = do
               putStrLn "Enter a numeric id or 'new':"
               loop
 
-pickEntitiesOrCreate :: Connection -> ObjectKind -> IO [Int]
+pickEntitiesOrCreate :: DbConn -> ObjectKind -> IO [Int]
 pickEntitiesOrCreate conn kind = do
   putStrLn ("Optional " ++ objectKey kind ++ " links (blank line when done):")
   printObjectList conn kind
@@ -124,12 +136,12 @@ pickEntitiesOrCreate conn kind = do
               putStrLn "Enter a numeric id, 'new', or blank:"
               loop acc
 
-pickTwoIds :: Connection -> ObjectKind -> ObjectKind -> IO (Int, Int)
+pickTwoIds :: DbConn -> ObjectKind -> ObjectKind -> IO (Int, Int)
 pickTwoIds conn kind1 kind2 = do
   id1 <- pickEntityOrCreate conn kind1
   id2 <- pickEntityOrCreate conn kind2
   pure (id1, id2)
 
-getTwoIds :: Maybe Int -> Maybe Int -> Connection -> ObjectKind -> ObjectKind -> IO (Int, Int)
+getTwoIds :: Maybe Int -> Maybe Int -> DbConn -> ObjectKind -> ObjectKind -> IO (Int, Int)
 getTwoIds (Just a) (Just b) _ _ _ = pure (a, b)
 getTwoIds _ _ conn kind1 kind2 = pickTwoIds conn kind1 kind2

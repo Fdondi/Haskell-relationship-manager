@@ -77,10 +77,15 @@ parseActionLine input =
     Just verb ->
       let (objTok, rest2) = parseFirstToken rest1
       in case parseObject objTok of
+        Nothing
+          | null (trim objTok) ->
+              case verb of
+                VList -> ParseSuccess (ListEntityInput Nothing)
+                _     -> ParseError "missing object" input
         Nothing -> ParseError "unknown object" input
         Just obj -> case verb of
           VAdd -> parseAddInput obj rest2
-          VList -> ParseSuccess (ListEntityInput obj)
+          VList -> ParseSuccess (ListEntityInput (Just obj))
           VDelete -> parseDeleteInput obj rest2
 
 parseAddInput :: ObjectKind -> String -> ParseResult ActionInput

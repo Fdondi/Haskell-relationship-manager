@@ -1,43 +1,49 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Db.Person where
 
-import           Control.Exception (catch)
-import           Database.SQLite.Simple
-import           Db.Count (CountRow (..))
+import           Db.Conn (DbConn (..))
 import           Types
 
-addPerson :: Connection -> PersonName -> PersonNotes -> [Int] -> IO Int
-addPerson conn name notes companyIds = do
-  execute conn "INSERT INTO people (name, notes) VALUES (?, ?)" (name, notes)
-  personId <- fromIntegral <$> lastInsertRowId conn
-  mapM_ (linkEmployment conn personId) companyIds
-  pure personId
+import qualified Db.Sqlite.Person as Sqlite
 
-linkEmployment :: Connection -> Int -> Int -> IO ()
-linkEmployment conn personId companyId =
-  execute conn "INSERT OR IGNORE INTO person_companies (person_id, company_id) VALUES (?, ?)" (personId, companyId)
+#ifdef POSTGRES
+import qualified Db.Postgres.Person as Postgres
+#endif
 
-listPeople :: Connection -> IO [PersonRow]
-listPeople conn = query_ conn "SELECT id, name, notes FROM people ORDER BY id"
+addPerson :: DbConn -> PersonName -> PersonNotes -> [Int] -> IO Int
+addPerson (SqliteConn conn) name notes companyIds = Sqlite.addPerson conn name notes companyIds
+#ifdef POSTGRES
+addPerson (PostgresConn conn) name notes companyIds = Postgres.addPerson conn name notes companyIds
+#endif
 
-personExists :: Connection -> Int -> IO Bool
-personExists conn id_ = do
-  [CountRow n] <- query conn "SELECT COUNT(*) FROM people WHERE id = ?" (Only id_)
-  pure (n > 0)
+linkEmployment :: DbConn -> Int -> Int -> IO ()
+linkEmployment (SqliteConn conn) personId companyId = Sqlite.linkEmployment conn personId companyId
+#ifdef POSTGRES
+linkEmployment (PostgresConn conn) personId companyId = Postgres.linkEmployment conn personId companyId
+#endif
 
-deletePerson :: Connection -> Int -> IO Bool
-deletePerson conn id_ =
-  (do
-    execute conn "DELETE FROM people WHERE id = ?" (Only id_)
-    putStrLn ("Person with ID " ++ show id_ ++ " deleted")
-    pure True)
-    `catch` \(_ :: SQLError) -> do
-      putStrLn "Cannot delete person: still referenced by encounters (delete those first)"
-      pure False
+listPeople :: DbConn -> IO [PersonRow]
+listPeople (SqliteConn conn) = Sqlite.listPeople conn
+#ifdef POSTGRES
+listPeople (PostgresConn conn) = Postgres.listPeople conn
+#endif
 
-printPeople :: Connection -> IO ()
-printPeople conn = do
-  putStrLn "People:"
-  rows <- listPeople conn
-  mapM_ print rows
+personExists :: DbConn -> Int -> IO Bool
+personExists (SqliteConn conn) = Sqlite.personExists conn
+#ifdef POSTGRES
+personExists (PostgresConn conn) = Postgres.personExists conn
+#endif
+
+deletePerson :: DbConn -> Int -> IO Bool
+deletePerson (SqliteConn conn) = Sqlite.deletePerson conn
+#ifdef POSTGRES
+deletePerson (PostgresConn conn) = Postgres.deletePerson conn
+#endif
+
+printPeople :: DbConn -> IO ()
+printPeople (SqliteConn conn) = Sqlite.printPeople conn
+#ifdef POSTGRES
+printPeople (PostgresConn conn) = Postgres.printPeople conn
+#endif

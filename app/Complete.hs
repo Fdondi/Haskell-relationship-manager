@@ -4,11 +4,11 @@ module Complete where
 
 import           Data.Char (toLower)
 import qualified Data.Text as T
-import           Database.SQLite.Simple
+import           Db.Conn (DbConn)
 import           Prompt
 import           Types
 
-completeAction :: Connection -> ActionInput -> IO Action
+completeAction :: DbConn -> ActionInput -> IO Action
 completeAction conn (AddPersonInput mName) = do
   nameStr <- getIfMissing mName "Enter name: "
   putStrLn "Enter notes: "
@@ -52,7 +52,10 @@ completeAction conn AddEmploymentInput = do
 completeAction conn AddSponsorshipInput = do
   (eventId, companyId) <- pickTwoIds conn OEvent OCompany
   pure (AddSponsorship eventId companyId)
-completeAction _ (ListEntityInput obj) = pure (ListEntity obj)
+completeAction _ (ListEntityInput (Just obj)) = pure (ListEntity obj)
+completeAction _conn (ListEntityInput Nothing) = do
+  obj <- pickObjectKind
+  pure (ListEntity obj)
 completeAction _conn (DeleteEntityInput obj mId) = do
   id_ <- getIfMissing mId ("Enter " ++ objectKey obj ++ " id to delete: ")
   pure (DeleteEntity obj id_)
