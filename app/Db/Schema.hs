@@ -4,9 +4,8 @@ module Db.Schema where
 
 import           Database.SQLite.Simple
 
--- Filename keeps the historical typo so an existing realtionships.db is not orphaned.
 dbPath :: String
-dbPath = "realtionships.db"
+dbPath = "relationships.db"
 
 initDb :: Connection -> IO ()
 initDb conn = do
